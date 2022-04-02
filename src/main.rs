@@ -101,10 +101,12 @@ impl WilmaClient {
             let full_h_end = (*event.end() as f32 / 60.0).floor();
 
             println!(
-                "{}, {}-{}",
+                "{}, {}-{} ({}-{})",
                 event.text(),
                 format_time(*event.start()),
-                format_time(*event.end())
+                format_time(*event.end()),
+                event.start(),
+                event.end()
             );
         }
     }
@@ -135,5 +137,5 @@ async fn main() {
         .await
         .unwrap();
 
-    client.get_teacher_schedule(16).await;
+    client.get_teacher_schedule(113).await;
 }
