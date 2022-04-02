@@ -29,7 +29,7 @@ where
     lines.position(|l| l.contains(pattern))
 }
 
-pub fn teacher_schedule<'a, I>(lines: I)
+pub fn teacher_schedule<'a, I>(lines: I) -> Vec<serde_json::Value>
 where
     I: Iterator<Item = &'a str> + Clone,
 {
@@ -47,8 +47,8 @@ where
         "}",
     );
 
-    println!("{}", s_finished);
-
     let json: serde_json::Value = serde_json::from_str(&s_finished).unwrap();
     println!("{}", serde_json::to_string_pretty(&json).unwrap());
+
+    json["Events"].as_array().unwrap().to_vec()
 }

@@ -11,6 +11,8 @@ use std::error::Error;
 use std::sync::Arc;
 
 mod event;
+use event::Event;
+
 mod parser;
 
 struct WilmaClient {
@@ -90,8 +92,37 @@ impl WilmaClient {
             .await
             .unwrap();
 
-        parser::teacher_schedule(res.split("\n"));
+        let events = parser::teacher_schedule(res.split("\n"))
+            .into_iter()
+            .map(|event| serde_json::from_value::<Event>(event).unwrap());
+
+        for event in events {
+            let full_h_start = (*event.start() as f32 / 60.0).floor();
+            let full_h_end = (*event.end() as f32 / 60.0).floor();
+
+            println!(
+                "{}, {}-{}",
+                event.text(),
+                format_time(*event.start()),
+                format_time(*event.end())
+            );
+        }
     }
+}
+
+fn format_time(time: u32) -> String {
+    let time_h = (time as f32 / 60.0).floor();
+    let time_hm = time as f32 / 60.0;
+
+    let minutes = (time_hm - time_h) * 60.0;
+
+    let minutes_fmt = if minutes < 10.0 {
+        format!("0{}", minutes.round())
+    } else {
+        format!("{}", minutes.round())
+    };
+
+    format!("{}:{}", time_h, minutes_fmt)
 }
 
 #[tokio::main]
@@ -104,5 +135,5 @@ async fn main() {
         .await
         .unwrap();
 
-    client.get_teacher_schedule(89).await;
+    client.get_teacher_schedule(16).await;
 }
