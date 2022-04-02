@@ -22,6 +22,13 @@ where
     lines.find(|l| l.contains(pattern))
 }
 
+pub fn filter_lines<'a, I>(pattern: &str, lines: &mut I) -> Vec<&'a str>
+where
+    I: Iterator<Item = &'a str>,
+{
+    lines.filter(|l| l.contains(pattern)).collect()
+}
+
 pub fn line_pos<'a, I>(pattern: &str, lines: &mut I) -> Option<usize>
 where
     I: Iterator<Item = &'a str>,
@@ -48,7 +55,27 @@ where
     );
 
     let json: serde_json::Value = serde_json::from_str(&s_finished).unwrap();
-    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+    //println!("{}", serde_json::to_string_pretty(&json).unwrap());
 
     json["Events"].as_array().unwrap().to_vec()
+}
+
+pub fn parse_teachers<'a, I>(mut lines: I) -> Vec<u32>
+where
+    I: Iterator<Item = &'a str>,
+{
+    filter_lines("class=\"profile-link ope fitt\"", &mut lines)
+        .into_iter()
+        .map(|line| line.replace(">", "/>").to_owned())
+        .map(|line| {
+            let frag = Html::parse_fragment(&line);
+            let selection = frag.select(&Selector::parse("a").unwrap()).next().unwrap();
+            selection.value().attr("href").unwrap().to_string()
+        })
+        .map(|line| line.split('/').collect::<Vec<&str>>()[4].to_string())
+        .map(|id| {
+            println!("{}", id);
+            id.trim().parse::<u32>().unwrap()
+        })
+        .collect()
 }

@@ -15,6 +15,26 @@ struct LongText {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+struct OpeInfo {
+    #[serde(rename(deserialize = "0"))]
+    inner: OpeInfoInner,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct OpeInfoInner {
+    #[serde(rename(deserialize = "0"))]
+    inner: OpeInfoInnerInner,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct OpeInfoInnerInner {
+    #[serde(rename(deserialize = "nimi"))]
+    name: String,
+    #[serde(rename(deserialize = "lyhenne"))]
+    abbreviation: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct Text {
     #[serde(rename(deserialize = "0"))]
     main: String,
@@ -27,6 +47,9 @@ pub struct Event {
     text: Text,
     start: u32,
     end: u32,
+    ope_info: OpeInfo,
+    #[serde(rename(deserialize = "ViikonPaiva"))]
+    weekday: String,
 }
 
 impl Event {
@@ -44,5 +67,13 @@ impl Event {
 
     pub fn end(&self) -> &u32 {
         &self.end
+    }
+
+    pub fn teacher(&self) -> &String {
+        &self.ope_info.inner.inner.name
+    }
+
+    pub fn weekday(&self) -> &String {
+        &self.weekday
     }
 }

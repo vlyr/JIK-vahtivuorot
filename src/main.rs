@@ -78,9 +78,24 @@ impl WilmaClient {
         })
     }
 
-    pub async fn get_teacher_schedule(&self, id: u32) {
-        let url = &format!("{}profiles/teachers/{}/schedule", self.base_url.clone(), id);
-        println!("{}", url);
+    pub async fn get_teachers(&self) -> Vec<u32> {
+        let url = &format!("{}profiles/teachers", &self.base_url);
+
+        let res = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+
+        parser::parse_teachers(res.split("\n"))
+    }
+
+    pub async fn get_teacher_schedule(&self, id: u32) -> Vec<Event> {
+        let url = &format!("{}profiles/teachers/{}/schedule", &self.base_url, id);
 
         let res = self
             .client
@@ -94,21 +109,10 @@ impl WilmaClient {
 
         let events = parser::teacher_schedule(res.split("\n"))
             .into_iter()
-            .map(|event| serde_json::from_value::<Event>(event).unwrap());
+            .map(|event| serde_json::from_value::<Event>(event).unwrap())
+            .collect();
 
-        for event in events {
-            let full_h_start = (*event.start() as f32 / 60.0).floor();
-            let full_h_end = (*event.end() as f32 / 60.0).floor();
-
-            println!(
-                "{}, {}-{} ({}-{})",
-                event.text(),
-                format_time(*event.start()),
-                format_time(*event.end()),
-                event.start(),
-                event.end()
-            );
-        }
+        events
     }
 }
 
@@ -137,5 +141,21 @@ async fn main() {
         .await
         .unwrap();
 
-    client.get_teacher_schedule(113).await;
+    for id in client.get_teachers().await {
+        let events = client.get_teacher_schedule(id).await;
+
+        for event in events {
+            println!(
+                "{}: {}, {}-{} ({}-{}) | {}",
+                event.teacher(),
+                event.text(),
+                format_time(*event.start()),
+                format_time(*event.end()),
+                event.start(),
+                event.end(),
+                event.weekday()
+            );
+        }
+    }
+    //client.get_teacher_schedule(113).await;
 }
