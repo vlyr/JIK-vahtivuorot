@@ -73,9 +73,6 @@ where
             selection.value().attr("href").unwrap().to_string()
         })
         .map(|line| line.split('/').collect::<Vec<&str>>()[4].to_string())
-        .map(|id| {
-            println!("{}", id);
-            id.trim().parse::<u32>().unwrap()
-        })
+        .map(|id| id.trim().parse::<u32>().unwrap())
         .collect()
 }

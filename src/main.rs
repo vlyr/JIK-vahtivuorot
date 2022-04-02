@@ -10,6 +10,14 @@ use std::env;
 use std::error::Error;
 use std::sync::Arc;
 
+const WEEKDAYS: &[&'static str; 5] = &[
+    "Maanantai",
+    "Tiistai",
+    "Keskiviikko",
+    "Torstai",
+    "Perjantai",
+];
+
 mod event;
 use event::Event;
 
@@ -141,11 +149,14 @@ async fn main() {
         .await
         .unwrap();
 
+    let mut events_vec = vec![];
+
     for id in client.get_teachers().await {
         let events = client.get_teacher_schedule(id).await;
 
         for event in events {
-            println!(
+            events_vec.push(event);
+            /*println!(
                 "{}: {}, {}-{} ({}-{}) | {}",
                 event.teacher(),
                 event.text(),
@@ -154,8 +165,36 @@ async fn main() {
                 event.start(),
                 event.end(),
                 event.weekday()
-            );
+            );*/
         }
     }
+
+    let mut events_vec = events_vec
+        .into_iter()
+        .filter(|ev| ev.text().contains("Valvonta"))
+        .collect::<Vec<Event>>();
+
+    events_vec.sort_by_key(|ev| *ev.start());
+
+    events_vec.sort_by(|a, b| {
+        let mut weekdays = WEEKDAYS.into_iter();
+        let mut weekdays_other = WEEKDAYS.into_iter();
+
+        weekdays
+            .position(|x| x == a.weekday())
+            .unwrap()
+            .cmp(&weekdays_other.position(|x| x == b.weekday()).unwrap())
+    });
+
+    events_vec.iter().for_each(|ev| {
+        println!(
+            "{} @ {}, {}-{} | {}",
+            ev.teacher(),
+            ev.text(),
+            format_time(*ev.start()),
+            format_time(*ev.end()),
+            ev.weekday()
+        )
+    })
     //client.get_teacher_schedule(113).await;
 }
