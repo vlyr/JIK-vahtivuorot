@@ -1,6 +1,8 @@
 use serde_json::Value;
 use std::env;
+use std::error::Error;
 use std::fs;
+use std::process;
 
 const WEEKDAYS: &[&'static str; 5] = &[
     "Maanantai",
@@ -21,31 +23,50 @@ const BREAK_PLACES: &[BreakPlace; 6] = &[
     BreakPlace::D,
 ];
 
-pub enum GetScheduleKind {
-    Personnel,
-    Teacher,
-}
+use kauppalaskin::{
+    event::{BreakPlace, Event, BREAK_STARTS},
+    utils::*,
+    wilma_client::{GetScheduleKind, WilmaClient},
+};
 
-mod event;
-use event::{BreakPlace, Event, BREAK_STARTS};
+fn read_data() -> Result<Vec<Vec<Vec<Event>>>, Box<dyn Error>> {
+    let data_file_path = format!("{}{}", env::var("HOME").unwrap(), DATA_PATH);
 
-mod parser;
-mod wilma_client;
-use wilma_client::WilmaClient;
+    let data = fs::read_to_string(data_file_path)?;
+    let events_vec: Vec<Event> = serde_json::from_str::<Vec<Value>>(&data)
+        .expect("Failed converting file data to JSON")
+        .iter()
+        .map(|elem| serde_json::from_value(elem.clone()).unwrap())
+        .collect();
 
-fn format_time(time: u32) -> String {
-    let time_h = (time as f32 / 60.0).floor();
-    let time_hm = time as f32 / 60.0;
+    let mut breaks: Vec<Vec<Vec<Event>>> = vec![vec![vec![]]; 5];
 
-    let minutes = (time_hm - time_h) * 60.0;
+    let mut current_weekday_idx = 0;
+    let mut current_start_idx: usize = 0;
 
-    let minutes_fmt = if minutes < 10.0 {
-        format!("0{}", minutes.round())
-    } else {
-        format!("{}", minutes.round())
-    };
+    events_vec.iter().for_each(|ev| {
+        let weekday_idx = WEEKDAYS
+            .into_iter()
+            .position(|x| x == ev.weekday())
+            .unwrap();
 
-    format!("{}:{}", time_h, minutes_fmt)
+        let break_start_idx = BREAK_STARTS
+            .into_iter()
+            .position(|x| *x as usize == *ev.start() as usize)
+            .unwrap();
+
+        if weekday_idx != current_weekday_idx {
+            current_weekday_idx += 1;
+            current_start_idx = 0;
+        } else if break_start_idx != current_start_idx {
+            breaks[current_weekday_idx].push(vec![]);
+            current_start_idx += 1;
+        }
+
+        breaks[current_weekday_idx][current_start_idx].push(ev.clone());
+    });
+
+    Ok(breaks)
 }
 
 #[tokio::main]
@@ -55,6 +76,57 @@ async fn main() {
 
     match args.next() {
         Some(arg) => match arg.as_ref() {
+            "get" => {
+                let day = args.next().expect("No input for day.");
+                let start = start_str_to_number(&args.next().expect("No input for break start."));
+
+                let weekday = match day.as_ref() {
+                    "ma" => "Maanantai",
+                    "ti" => "Tiistai",
+                    "ke" => "Keskiviikko",
+                    "to" => "Torstai",
+                    "pe" => "Perjantai",
+
+                    _ => {
+                        println!("Invalid input for day, expected ma/ti/ke/to/pe");
+                        process::exit(1);
+                    }
+                };
+
+                let events = read_data().expect("Failed reading data from data file.");
+
+                let weekday_idx = WEEKDAYS.iter().position(|x| x == &weekday).unwrap();
+
+                let break_start_idx = BREAK_STARTS
+                    .iter()
+                    .position(|x| x == &start)
+                    .expect("Invalid start time provided.");
+
+                let selected_break = &events[weekday_idx][break_start_idx];
+
+                for event in selected_break {
+                    println!(
+                        "{} ({})",
+                        event.place().to_string(),
+                        event.teachers().join(", ")
+                    );
+                }
+
+                let missing: Vec<String> = BREAK_PLACES
+                    .iter()
+                    .filter(|place| {
+                        selected_break
+                            .iter()
+                            .filter(|ev| ev.place() == **place)
+                            .count()
+                            == 0
+                    })
+                    .map(|place| place.to_string())
+                    .collect();
+
+                println!("\nPUUTTUU: {}", missing.join(", "));
+            }
+
             "update" => {
                 let username = env::var("USERNAME").unwrap();
                 let password = env::var("PASSWORD").unwrap();
@@ -113,79 +185,32 @@ async fn main() {
         },
 
         None => {
-            let data_file_path = format!("{}{}", env::var("HOME").unwrap(), DATA_PATH);
+            let events = read_data().expect("Failed reading data from data file.");
 
-            match fs::read_to_string(data_file_path) {
-                Ok(data) => {
-                    let events_vec: Vec<Event> = serde_json::from_str::<Vec<Value>>(&data)
-                        .expect("Failed converting file data to JSON")
+            for day in events {
+                for b in day {
+                    println!(
+                        "{} | {}-{}",
+                        b[0].weekday(),
+                        format_time(*b[0].start()),
+                        format_time(*b[0].end())
+                    );
+
+                    for monitor in &b {
+                        println!(
+                            "  {} ({})",
+                            monitor.place().to_string(),
+                            monitor.teachers().join(", ")
+                        );
+                    }
+
+                    let missing: Vec<String> = BREAK_PLACES
                         .iter()
-                        .map(|elem| serde_json::from_value(elem.clone()).unwrap())
+                        .filter(|place| b.iter().filter(|ev| ev.place() == **place).count() == 0)
+                        .map(|place| place.to_string())
                         .collect();
 
-                    let mut breaks: Vec<Vec<Vec<&Event>>> = vec![vec![vec![]]; 5];
-
-                    let mut current_weekday_idx = 0;
-                    let mut current_start_idx: usize = 0;
-
-                    events_vec.iter().for_each(|ev| {
-                        let weekday_idx = WEEKDAYS
-                            .into_iter()
-                            .position(|x| x == ev.weekday())
-                            .unwrap();
-
-                        let break_start_idx = BREAK_STARTS
-                            .into_iter()
-                            .position(|x| *x as usize == *ev.start() as usize)
-                            .unwrap();
-
-                        if weekday_idx != current_weekday_idx {
-                            current_weekday_idx += 1;
-                            current_start_idx = 0;
-                        } else if break_start_idx != current_start_idx {
-                            breaks[current_weekday_idx].push(vec![]);
-                            current_start_idx += 1;
-                        }
-
-                        breaks[current_weekday_idx][current_start_idx].push(ev);
-                    });
-
-                    for day in breaks {
-                        for b in day {
-                            println!(
-                                "{} | {}-{}",
-                                b[0].weekday(),
-                                format_time(*b[0].start()),
-                                format_time(*b[0].end())
-                            );
-
-                            for monitor in &b {
-                                println!(
-                                    "  {} ({})",
-                                    monitor.place().to_string(),
-                                    monitor.teachers().join(", ")
-                                );
-                            }
-
-                            let missing: Vec<String> = BREAK_PLACES
-                                .iter()
-                                .filter(|place| {
-                                    b.iter().filter(|ev| ev.place() == **place).count() == 0
-                                })
-                                .map(|place| place.to_string())
-                                .collect();
-
-                            println!("  PUUTTUU: {}\n", missing.join(", "));
-                        }
-                    }
-                }
-
-                Err(why) => {
-                    println!(
-                        "Couldn't read data file: {}\nPerhaps you should try running `{} update`",
-                        why,
-                        binary_name.unwrap(),
-                    );
+                    println!("  PUUTTUU: {}\n", missing.join(", "));
                 }
             }
         }

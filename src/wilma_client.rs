@@ -4,7 +4,7 @@ use reqwest::{
     Client, Url,
 };
 
-use crate::{parser, Event, GetScheduleKind};
+use crate::{event::Event, parser};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::error::Error;
@@ -14,6 +14,11 @@ use std::sync::Arc;
 pub struct WilmaClient {
     base_url: String,
     client: Client,
+}
+
+pub enum GetScheduleKind {
+    Personnel,
+    Teacher,
 }
 
 impl WilmaClient {
