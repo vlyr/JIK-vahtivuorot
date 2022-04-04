@@ -57,46 +57,51 @@ impl ToString for BreakPlace {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct LongText {
-    #[serde(rename(deserialize = "0"))]
+    #[serde(alias = "0")]
     main: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct OpeInfo {
-    #[serde(rename(deserialize = "0"))]
+    #[serde(alias = "0")]
     inner: OpeInfoInner,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct OpeInfoInner {
-    #[serde(rename(deserialize = "0"))]
+    #[serde(alias = "0")]
     inner: Option<OpeInfoInnerInner>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 struct OpeInfoInnerInner {
-    #[serde(rename(deserialize = "nimi"))]
+    #[serde(alias = "nimi")]
     name: String,
-    #[serde(rename(deserialize = "lyhenne"))]
+    #[serde(alias = "lyhenne")]
     abbreviation: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Text {
-    #[serde(rename(deserialize = "0"))]
+    #[serde(alias = "0")]
     main: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all(deserialize = "PascalCase"))]
 pub struct Event {
+    #[serde(alias = "LongText")]
     long_text: LongText,
+    #[serde(alias = "Text")]
     text: Text,
+    #[serde(alias = "Start")]
     start: u32,
+    #[serde(alias = "End")]
     end: u32,
+    #[serde(alias = "OpeInfo")]
     ope_info: OpeInfo,
+    #[serde(alias = "HenkiloInfo")]
     henkilo_info: OpeInfo,
-    #[serde(rename(deserialize = "ViikonPaiva"))]
+    #[serde(alias = "ViikonPaiva")]
     weekday: String,
 }
 
