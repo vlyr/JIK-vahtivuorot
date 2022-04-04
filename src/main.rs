@@ -18,11 +18,21 @@ const WEEKDAYS: &[&'static str; 5] = &[
     "Perjantai",
 ];
 
+const BREAK_PLACES: &[BreakPlace; 6] = &[
+    BreakPlace::IikoonLinna,
+    BreakPlace::Downstairs,
+    BreakPlace::Upstairs,
+    BreakPlace::FrontYard,
+    BreakPlace::EPlusS,
+    BreakPlace::D,
+];
+
 mod event;
-use event::Event;
+use event::{BreakPlace, Event, BREAK_STARTS};
 
 mod parser;
 
+#[derive(Debug, Clone)]
 struct WilmaClient {
     base_url: String,
     client: Client,
@@ -34,11 +44,6 @@ impl WilmaClient {
         let client = builder.build()?;
 
         let mut url = format!("https://{}/", server);
-
-        /*let _wilmas = reqwest::get("https://www.starsoft.fi/wilmat/wilmat.json")
-        .await?
-        .text()
-        .await?;*/
 
         let res = reqwest::get(url.clone() + "index_json")
             .await?
@@ -102,6 +107,44 @@ impl WilmaClient {
         parser::parse_teachers(res.split("\n"))
     }
 
+    pub async fn get_personnel(&self) -> Vec<u32> {
+        let url = &format!("{}profiles/personnel", &self.base_url);
+
+        let res = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+
+        parser::parse_teachers(res.split("\n"))
+    }
+
+    pub async fn get_personnel_schedule(&self, id: u32) -> Vec<Event> {
+        let url = &format!("{}profiles/personnel/{}/schedule", &self.base_url, id);
+
+        let res = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+
+        parser::teacher_schedule(res.split("\n"))
+            .into_iter()
+            .map(|event| {
+                println!("{}", event);
+                serde_json::from_value::<Event>(event).unwrap()
+            })
+            .collect()
+    }
+
     pub async fn get_teacher_schedule(&self, id: u32) -> Vec<Event> {
         let url = &format!("{}profiles/teachers/{}/schedule", &self.base_url, id);
 
@@ -117,7 +160,10 @@ impl WilmaClient {
 
         let events = parser::teacher_schedule(res.split("\n"))
             .into_iter()
-            .map(|event| serde_json::from_value::<Event>(event).unwrap())
+            .map(|event| {
+                println!("{}", event);
+                serde_json::from_value::<Event>(event).unwrap()
+            })
             .collect();
 
         events
@@ -156,16 +202,14 @@ async fn main() {
 
         for event in events {
             events_vec.push(event);
-            /*println!(
-                "{}: {}, {}-{} ({}-{}) | {}",
-                event.teacher(),
-                event.text(),
-                format_time(*event.start()),
-                format_time(*event.end()),
-                event.start(),
-                event.end(),
-                event.weekday()
-            );*/
+        }
+    }
+
+    for id in client.get_personnel().await {
+        let events = client.get_personnel_schedule(id).await;
+
+        for event in events {
+            events_vec.push(event);
         }
     }
 
@@ -186,15 +230,67 @@ async fn main() {
             .cmp(&weekdays_other.position(|x| x == b.weekday()).unwrap())
     });
 
+    let mut breaks: Vec<Vec<Vec<&Event>>> = vec![vec![vec![]]; 5];
+
+    let mut current_weekday_idx = 0;
+    let mut current_start_idx: usize = 0;
+
     events_vec.iter().for_each(|ev| {
-        println!(
-            "{} @ {}, {}-{} | {}",
-            ev.teacher(),
-            ev.text(),
+        let weekday_idx = WEEKDAYS
+            .into_iter()
+            .position(|x| x == ev.weekday())
+            .unwrap();
+
+        let break_start_idx = BREAK_STARTS
+            .into_iter()
+            .position(|x| *x as usize == *ev.start() as usize)
+            .unwrap();
+
+        if weekday_idx != current_weekday_idx {
+            current_weekday_idx += 1;
+            current_start_idx = 0;
+        } else if break_start_idx != current_start_idx {
+            breaks[current_weekday_idx].push(vec![]);
+            current_start_idx += 1;
+        }
+
+        /*breaks[current_weekday_idx][current_start_idx].push(format!(
+            "{} {}-{}: {} ({}) | {}",
+            ev.weekday(),
             format_time(*ev.start()),
             format_time(*ev.end()),
-            ev.weekday()
-        )
-    })
+            ev.place().to_string(),
+            ev.text().replace("Valvonta ", ""),
+            ev.teacher(),
+        ))*/
+        breaks[current_weekday_idx][current_start_idx].push(ev);
+    });
+
+    for day in breaks {
+        for b in day {
+            println!(
+                "{} | {}-{}",
+                b[0].weekday(),
+                format_time(*b[0].start()),
+                format_time(*b[0].end())
+            );
+
+            for monitor in &b {
+                println!(
+                    "  {} ({})",
+                    monitor.place().to_string(),
+                    monitor.teachers().join(", ")
+                );
+            }
+
+            let missing: Vec<String> = BREAK_PLACES
+                .iter()
+                .filter(|place| b.iter().filter(|ev| ev.place() == **place).count() == 0)
+                .map(|place| place.to_string())
+                .collect();
+
+            println!("puuttuu: {}\n", missing.join(", "));
+        }
+    }
     //client.get_teacher_schedule(113).await;
 }

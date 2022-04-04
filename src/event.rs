@@ -6,7 +6,56 @@ use serde::{Deserialize, Serialize};
 // 660 = 1. rk puoliväli (11:00)
 // 705 = 2. rk alku (11:45)
 // 720 = 2. rk puoliväli (12:00)
-const BREAK_STARTS: &[i32; 6] = &[525, 585, 645, 660, 705, 720];
+pub const BREAK_STARTS: &[u32; 6] = &[525, 585, 645, 660, 705, 720];
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum BreakPlace {
+    IikoonLinna,
+    Downstairs,
+    Upstairs,
+    FrontYard,
+    EPlusS, // katos?
+    D,      // takapiha?
+    S,      // ??
+    Other,
+}
+
+impl<T> From<T> for BreakPlace
+where
+    T: AsRef<str>,
+{
+    fn from(data: T) -> Self {
+        use BreakPlace::*;
+        match data.as_ref() {
+            "Valvonta YK" => Upstairs,
+            "Valvonta AK" => Downstairs,
+            "Valvonta E + S" => EPlusS,
+            "Valvonta S" => S,
+            "Valvonta P" => FrontYard,
+            "Valvonta D" => D,
+            "Valvonta Iikoon linna" => IikoonLinna,
+            _ => Other,
+        }
+    }
+}
+
+impl ToString for BreakPlace {
+    fn to_string(&self) -> String {
+        use BreakPlace::*;
+
+        match self {
+            IikoonLinna => "Iikoon linna",
+            Downstairs => "Alakerta",
+            Upstairs => "Yläkerta",
+            FrontYard => "Etupiha",
+            EPlusS => "??? (E + S)",
+            D => "Takapiha? (D)",
+            S => "??? (S)",
+            Other => "???",
+        }
+        .to_string()
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct LongText {
@@ -23,10 +72,10 @@ struct OpeInfo {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct OpeInfoInner {
     #[serde(rename(deserialize = "0"))]
-    inner: OpeInfoInnerInner,
+    inner: Option<OpeInfoInnerInner>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 struct OpeInfoInnerInner {
     #[serde(rename(deserialize = "nimi"))]
     name: String,
@@ -48,6 +97,7 @@ pub struct Event {
     start: u32,
     end: u32,
     ope_info: OpeInfo,
+    henkilo_info: OpeInfo,
     #[serde(rename(deserialize = "ViikonPaiva"))]
     weekday: String,
 }
@@ -69,11 +119,37 @@ impl Event {
         &self.end
     }
 
-    pub fn teacher(&self) -> &String {
-        &self.ope_info.inner.inner.name
+    pub fn teachers(&self) -> Vec<String> {
+        let ope_name = self
+            .ope_info
+            .inner
+            .inner
+            .as_ref()
+            .unwrap_or(&OpeInfoInnerInner::default())
+            .name
+            .clone();
+
+        let hlo_name = self
+            .henkilo_info
+            .inner
+            .inner
+            .as_ref()
+            .unwrap_or(&OpeInfoInnerInner::default())
+            .name
+            .clone();
+
+        vec![ope_name, hlo_name]
+            .iter()
+            .filter(|x| !x.is_empty())
+            .map(|x| x.clone())
+            .collect()
     }
 
     pub fn weekday(&self) -> &String {
         &self.weekday
+    }
+
+    pub fn place(&self) -> BreakPlace {
+        BreakPlace::from(self.text())
     }
 }

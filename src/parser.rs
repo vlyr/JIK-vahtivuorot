@@ -55,7 +55,6 @@ where
     );
 
     let json: serde_json::Value = serde_json::from_str(&s_finished).unwrap();
-    //println!("{}", serde_json::to_string_pretty(&json).unwrap());
 
     json["Events"].as_array().unwrap().to_vec()
 }
@@ -64,7 +63,7 @@ pub fn parse_teachers<'a, I>(mut lines: I) -> Vec<u32>
 where
     I: Iterator<Item = &'a str>,
 {
-    filter_lines("class=\"profile-link ope fitt\"", &mut lines)
+    filter_lines("class=\"profile-link ", &mut lines)
         .into_iter()
         .map(|line| line.replace(">", "/>").to_owned())
         .map(|line| {
