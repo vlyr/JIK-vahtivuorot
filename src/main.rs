@@ -27,6 +27,11 @@ const BREAK_PLACES: &[BreakPlace; 6] = &[
     BreakPlace::D,
 ];
 
+pub enum GetScheduleKind {
+    Personnel,
+    Teacher,
+}
+
 mod event;
 use event::{BreakPlace, Event, BREAK_STARTS};
 
@@ -79,9 +84,7 @@ impl WilmaClient {
 
         let res = client.get(url.clone()).send().await?.text().await?;
 
-        let mut lines = res.split("\n");
-
-        let identity = parser::parse_identity(&mut lines);
+        let identity = parser::parse_identity(&res);
 
         url += &identity;
 
@@ -104,7 +107,7 @@ impl WilmaClient {
             .await
             .unwrap();
 
-        parser::parse_teachers(res.split("\n"))
+        parser::parse_teachers(&res)
     }
 
     pub async fn get_personnel(&self) -> Vec<u32> {
@@ -120,11 +123,16 @@ impl WilmaClient {
             .await
             .unwrap();
 
-        parser::parse_teachers(res.split("\n"))
+        parser::parse_teachers(&res)
     }
 
-    pub async fn get_personnel_schedule(&self, id: u32) -> Vec<Event> {
-        let url = &format!("{}profiles/personnel/{}/schedule", &self.base_url, id);
+    pub async fn get_schedule(&self, id: u32, kind: GetScheduleKind) -> Vec<Event> {
+        let path = match kind {
+            GetScheduleKind::Personnel => "personnel",
+            GetScheduleKind::Teacher => "teachers",
+        };
+
+        let url = &format!("{}profiles/{}/{}/schedule", &self.base_url, path, id);
 
         let res = self
             .client
@@ -136,37 +144,13 @@ impl WilmaClient {
             .await
             .unwrap();
 
-        parser::teacher_schedule(res.split("\n"))
+        parser::schedule(&res)
             .into_iter()
             .map(|event| {
                 println!("{}", event);
                 serde_json::from_value::<Event>(event).unwrap()
             })
             .collect()
-    }
-
-    pub async fn get_teacher_schedule(&self, id: u32) -> Vec<Event> {
-        let url = &format!("{}profiles/teachers/{}/schedule", &self.base_url, id);
-
-        let res = self
-            .client
-            .get(url)
-            .send()
-            .await
-            .unwrap()
-            .text()
-            .await
-            .unwrap();
-
-        let events = parser::teacher_schedule(res.split("\n"))
-            .into_iter()
-            .map(|event| {
-                println!("{}", event);
-                serde_json::from_value::<Event>(event).unwrap()
-            })
-            .collect();
-
-        events
     }
 }
 
@@ -198,7 +182,7 @@ async fn main() {
     let mut events_vec = vec![];
 
     for id in client.get_teachers().await {
-        let events = client.get_teacher_schedule(id).await;
+        let events = client.get_schedule(id, GetScheduleKind::Teacher).await;
 
         for event in events {
             events_vec.push(event);
@@ -206,7 +190,7 @@ async fn main() {
     }
 
     for id in client.get_personnel().await {
-        let events = client.get_personnel_schedule(id).await;
+        let events = client.get_schedule(id, GetScheduleKind::Personnel).await;
 
         for event in events {
             events_vec.push(event);
@@ -230,6 +214,7 @@ async fn main() {
             .cmp(&weekdays_other.position(|x| x == b.weekday()).unwrap())
     });
 
+    // gotta redo this lmao
     let mut breaks: Vec<Vec<Vec<&Event>>> = vec![vec![vec![]]; 5];
 
     let mut current_weekday_idx = 0;
@@ -254,15 +239,6 @@ async fn main() {
             current_start_idx += 1;
         }
 
-        /*breaks[current_weekday_idx][current_start_idx].push(format!(
-            "{} {}-{}: {} ({}) | {}",
-            ev.weekday(),
-            format_time(*ev.start()),
-            format_time(*ev.end()),
-            ev.place().to_string(),
-            ev.text().replace("Valvonta ", ""),
-            ev.teacher(),
-        ))*/
         breaks[current_weekday_idx][current_start_idx].push(ev);
     });
 
@@ -292,5 +268,4 @@ async fn main() {
             println!("puuttuu: {}\n", missing.join(", "));
         }
     }
-    //client.get_teacher_schedule(113).await;
 }
