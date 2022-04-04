@@ -1,0 +1,3 @@
+- [ ] Save data locally, update manually with a command
+- [ ] Command to retrieve specific breaks' and places' monitors
+- [ ] Credentials passed via command arguments to update command?
