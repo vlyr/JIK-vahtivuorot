@@ -14,10 +14,9 @@ pub enum BreakPlace {
     Downstairs,
     Upstairs,
     FrontYard,
-    EPlusS, // katos?
-    D,      // takapiha?
-    S,      // ??
-    Other,
+    WingAndShed, // katos?
+    D,           // takapiha?
+    Wing,        // ??
 }
 
 impl<T> From<T> for BreakPlace
@@ -29,12 +28,12 @@ where
         match data.as_ref() {
             "Valvonta YK" => Upstairs,
             "Valvonta AK" => Downstairs,
-            "Valvonta E + S" => EPlusS,
-            "Valvonta S" => S,
+            "Valvonta E + S" => WingAndShed,
+            "Valvonta S" => Wing,
             "Valvonta P" => FrontYard,
             "Valvonta D" => D,
             "Valvonta Iikoon linna" => IikoonLinna,
-            _ => Other,
+            _ => unreachable!(),
         }
     }
 }
@@ -47,11 +46,10 @@ impl ToString for BreakPlace {
             IikoonLinna => "Iikoon linna",
             Downstairs => "Alakerta",
             Upstairs => "Yläkerta",
-            FrontYard => "Etupiha",
-            EPlusS => "??? (E + S)",
+            FrontYard => "Etupiha/Parkkipaikka",
+            WingAndShed => "Ruokalarakennuksen katos ja siipirakennus",
             D => "Takapiha? (D)",
-            S => "??? (S)",
-            Other => "???",
+            Wing => "Siipirakennus",
         }
         .to_string()
     }

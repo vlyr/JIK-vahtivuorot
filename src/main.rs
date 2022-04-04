@@ -23,7 +23,7 @@ const BREAK_PLACES: &[BreakPlace; 6] = &[
     BreakPlace::Downstairs,
     BreakPlace::Upstairs,
     BreakPlace::FrontYard,
-    BreakPlace::EPlusS,
+    BreakPlace::WingAndShed,
     BreakPlace::D,
 ];
 
@@ -265,7 +265,7 @@ async fn main() {
                 .map(|place| place.to_string())
                 .collect();
 
-            println!("puuttuu: {}\n", missing.join(", "));
+            println!("  PUUTTUU: {}\n", missing.join(", "));
         }
     }
 }
